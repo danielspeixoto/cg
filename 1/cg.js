@@ -1,5 +1,3 @@
-
-
 function init() {
     var renderer = new THREE.WebGLRenderer();
     renderer.setClearColor(new THREE.Color(0.0, 0.0, 0.0));
@@ -8,33 +6,50 @@ function init() {
 
     var gui = new dat.GUI();
     var options = {
-        previousSize: -1,
+        changed: true,
         size: 5,
         wireframe: false,
+        faceGenerator: getUniform,
         toggleWireframe: function () {
             this.wireframe = !this.wireframe;
         },
         increaseResolution: function () {
             this.size += 10;
+            changed = true
+        },
+        uniformColouring: function() {
+            this.faceGenerator = getUniform
+            changed = true
+        },
+        xyzColouring: function() {
+            this.faceGenerator = getXYZ
+            changed = true
+        },
+        angleColouring: function() {
+            this.faceGenerator = getAngle
+            changed = true
         }
     }
     gui.add(options, 'toggleWireframe')
+    gui.add(options, 'xyzColouring')
+    gui.add(options, 'angleColouring')
+    gui.add(options, 'uniformColouring')
     gui.add(options, 'size', 5, 50).listen();
 
     var delta = 0
     var material = createMaterial(options.wireframe)
-    var scene = createScene(createDrop(options.size), material)
+    var scene;
     var camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, -100)
     var light = new THREE.AmbientLight(0xffffff, 0.5);
     function loop() {
         requestAnimationFrame(loop)
 
-        if (options.size != options.previousSize) {
-            console.log("resolution changed")
+        if (options.changed) {
+            console.log("changed")
             options.previousSize = options.size
             renderer.clear()
             console.log(options.size)
-            scene = createScene(createDrop(Math.round(options.size)), material)
+            scene = createScene(createDrop(Math.round(options.size), options.faceGenerator), material)
             scene.add(camera)
             scene.add(light);
         }
@@ -53,7 +68,6 @@ function init() {
 function createMaterial(wireframe) {
     material = new THREE.MeshBasicMaterial({
         wireframe,
-        // color: 0x0000ff
         vertexColors: THREE.VertexColors
     })
 
@@ -71,10 +85,8 @@ function createScene(geometry, material) {
     return scene
 }
 
-function createDrop(size) {
+function createDrop(size, faceGenerator) {
     let geometry = new THREE.Geometry();
-    console.log(geometry.vertices.length)
-
     var xVar = -1
     var yVar = -1
     var zVar = -1
@@ -103,14 +115,33 @@ function createDrop(size) {
             })
         }
     }
-
-    var createFace = AngleFaceGenerator(geometry, angles)
+    var createFace = faceGenerator(geometry, angles,  xVar, yVar, zVar)
     for (let i = 0; i + size + 1 < geometry.vertices.length; i++) {
         geometry.faces.push(createFace(i, i + size, i + size + 1))
         geometry.faces.push(createFace(i, i + size + 1, i + 1))
     }
 
     return geometry
+}
+
+function getUniform(geometry, angles, xVar, yVar, zVar) {
+    return UniformFaceGenerator(new THREE.Color(0,0,1))
+}
+function getXYZ(geometry, angles, xVar, yVar, zVar) {
+    return CoordinatesFaceGenerator(geometry, xVar, yVar, zVar)
+}
+function getAngle(geometry, angles, xVar, yVar, zVar) {
+    return AngleFaceGenerator(geometry, angles)
+}
+
+function UniformFaceGenerator(color) {
+    return function createFace(a, b, c) {
+        var face = new THREE.Face3(a, b, c)
+        face.vertexColors[0] = color
+        face.vertexColors[1] = color
+        face.vertexColors[2] = color
+        return face
+    }
 }
 
 function AngleFaceGenerator(geometry, arr) {
